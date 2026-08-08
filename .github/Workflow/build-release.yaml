@@ -1,0 +1,67 @@
+name: Build and Release Cheat Engine (Windows)
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*' # Triggers a release when pushing tags like v7.5.0
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Lazarus
+        uses: gcarreno/setup-lazarus@v3
+        with:
+          lazarus-version: "2.2.6" # Safest version for Cheat Engine compatibility
+          with-cache: false
+          
+      - name: Build 64-bit Executable
+        run: lazbuild -B "Cheat Engine/cheatengine.lpi" --build-mode="Release 64-Bit"
+        
+      - name: Build 32-bit Executable
+        run: lazbuild -B "Cheat Engine/cheatengine.lpi" --build-mode="Release 32-Bit"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CE-Binaries
+          path: Cheat Engine/bin/*.exe
+          
+  release:
+    name: Publish Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: CE-Binaries
+          path: CE-Release
+          
+      - name: Zip Binaries
+        run: zip -r CheatEngine-Windows.zip CE-Release/
+        
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: CheatEngine-Windows.zip
+          generate_release_notes: true
+          
